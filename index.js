@@ -2,12 +2,14 @@ require('dotenv').config();
 const express = require('express');
 const searchRouter = require('./routes/search');
 const fetchRouter = require('./routes/fetch');
+const mcpRouter = require('./routes/mcp');
 
 const app = express();
 app.use(express.json());
 
 app.use('/search', searchRouter);
 app.use('/fetch', fetchRouter);
+app.use('/mcp', mcpRouter);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

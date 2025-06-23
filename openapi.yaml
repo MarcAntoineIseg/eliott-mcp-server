@@ -79,3 +79,30 @@ paths:
                     type: string
                   metadata:
                     type: object
+
+  /mcp:
+    get:
+      operationId: get_tools
+      summary: MCP Tool Discovery
+      responses:
+        '200':
+          description: Liste des tools MCP disponibles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum: [mcp_list_tools]
+                  tools:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        description:
+                          type: string
+                        input_schema:
+                          type: object

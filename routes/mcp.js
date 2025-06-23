@@ -36,4 +36,34 @@ router.get('/', (req, res) => {
   });
 });
 
+// Handler MCP tool_call minimal
+router.post('/', async (req, res) => {
+  const frame = req.body;
+
+  if (frame.type === "call" && frame.name === "search_google_ads_campaigns") {
+    const args = JSON.parse(frame.arguments);
+    // Appelle ton service Google Ads ici
+    const output = `Résultat simulé pour ${args.query}`;
+    return res.json({
+      id: frame.id || "generated-id-1",
+      type: "call_result",
+      output: output
+    });
+  }
+
+  if (frame.type === "call" && frame.name === "fetch_google_ads_campaign") {
+    const args = JSON.parse(frame.arguments);
+    // Appelle ton fetch de campagne ici
+    const output = `Campagne ID ${args.id} récupérée.`;
+    return res.json({
+      id: frame.id || "generated-id-2",
+      type: "call_result",
+      output: output
+    });
+  }
+
+  // fallback
+  res.status(400).json({ error: "Unsupported MCP call" });
+});
+
 module.exports = router;

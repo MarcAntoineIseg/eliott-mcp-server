@@ -1,0 +1,81 @@
+openapi: 3.0.0
+info:
+  title: Eliott MCP Server
+  version: 1.0.0
+  description: >-
+    API MCP pour l'agent marketing Eliott. Permet la recherche et la récupération de campagnes Google Ads via MCP.
+servers:
+  - url: https://eliott-mcp-server-production.up.railway.app
+paths:
+  /search_google_ads_campaigns:
+    post:
+      operationId: search_google_ads_campaigns
+      summary: Recherche des campagnes Google Ads pertinentes pour un utilisateur
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: Recherche textuelle sur les campagnes
+                uid:
+                  type: string
+                  description: Identifiant utilisateur (Supabase UID)
+              required:
+                - query
+                - uid
+      responses:
+        '200':
+          description: Résultats MCP
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    title:
+                      type: string
+                    text:
+                      type: string
+                    url:
+                      type: string
+  /fetch_google_ads_campaign:
+    post:
+      operationId: fetch_google_ads_campaign
+      summary: Récupère les détails d'une campagne Google Ads par ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: ID de la campagne Google Ads
+              required:
+                - id
+      responses:
+        '200':
+          description: Détail MCP campagne
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  title:
+                    type: string
+                  text:
+                    type: string
+                  url:
+                    type: string
+                  metadata:
+                    type: object

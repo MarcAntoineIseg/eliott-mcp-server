@@ -11,13 +11,22 @@ app.use('/search', searchRouter);
 app.use('/fetch', fetchRouter);
 app.use('/mcp', mcpRouter);
 
-// Route SSE vide pour N8N
+// Route SSE avec ping régulier pour N8N
 app.get('/sse', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders(); // Obligatoire pour les SSE
-  res.write('\n');
+  res.flushHeaders();
+
+  // Ping toutes les 15 secondes
+  const intervalId = setInterval(() => {
+    res.write(`event: ping\ndata: {}\n\n`);
+  }, 15000);
+
+  req.on('close', () => {
+    clearInterval(intervalId);
+    res.end();
+  });
 });
 
 const PORT = process.env.PORT || 3000;

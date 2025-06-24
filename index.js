@@ -40,41 +40,39 @@ const tools = [
   }
 ];
 
-// ✅ Route MCP Tools Agent compatible (SSE)
-app.post('/sse', async (req, res) => {
+// ✅ Route SSE compatible GET (pour N8N Tools Agent)
+app.get('/sse', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  try {
-    const { input, parameters } = req.body;
-    const tool = tools.find(t => t.name === input);
-    if (!tool) {
-      res.write(`data: ${JSON.stringify({ error: 'Tool not found' })}\n\n`);
-      res.write(`data: [DONE]\n\n`);
-      return res.end();
-    }
+  // Données simulées (aucun input dynamique avec GET)
+  const tool = tools.find(t => t.name === 'search_google_ads_campaigns');
 
-    // tool_call
-    res.write(`data: ${JSON.stringify({ tool_call: { name: tool.name, parameters } })}\n\n`);
-
-    // tool_response
-    const output = await tool.run({ input: { parameters } });
-    res.write(`data: ${JSON.stringify({ tool_response: output })}\n\n`);
-
-    // end
+  if (!tool) {
+    res.write(`data: ${JSON.stringify({ error: 'Tool not found' })}\n\n`);
     res.write(`data: [DONE]\n\n`);
-    res.end();
-  } catch (error) {
-    console.error('SSE Error:', error);
-    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
-    res.write(`data: [DONE]\n\n`);
-    res.end();
+    return res.end();
   }
+
+  // Envoie un tool_call
+  res.write(`data: ${JSON.stringify({ tool_call: { name: tool.name, parameters: {} } })}\n\n`);
+
+  // Attends 1 sec puis répond
+  setTimeout(async () => {
+    const output = await tool.run({ input: { parameters: {} } });
+    res.write(`data: ${JSON.stringify({ tool_response: output })}\n\n`);
+    res.write(`data: [DONE]\n\n`);
+    res.end();
+  }, 1000);
+
+  req.on('close', () => {
+    res.end();
+  });
 });
 
-// ✅ Route d'accueil pour vérifier que le serveur est up
+// ✅ Route d'accueil
 app.get('/', (req, res) => {
   res.send('✅ Eliott MCP Server is running');
 });

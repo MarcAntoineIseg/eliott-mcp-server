@@ -12,6 +12,7 @@ const executeGAQLQueryRouter = require('./routes/execute_gaql_query');
 const app = express();
 app.use(express.json());
 
+// Routes custom de ton app
 app.use('/search', searchRouter);
 app.use('/fetch', fetchRouter);
 app.use('/mcp', mcpRouter);
@@ -21,32 +22,62 @@ app.use('/get_campaign_performance', getCampaignPerformanceRouter);
 app.use('/get_ad_performance', getAdPerformanceRouter);
 app.use('/execute_gaql_query', executeGAQLQueryRouter);
 
-// MCP Tools Agents (OpenAI/N8N) compatible SSE
-const { createMcpHandler } = require('@microsoft/fastmcp');
-
+// MCP tools simulés
 const tools = [
   {
-    name: "search_google_ads_campaigns",
-    description: "Renvoie une liste simulée de campagnes",
-    parameters: {
-      type: "object",
-      properties: {
-        accountId: { type: "string" }
-      },
-      required: ["accountId"]
-    },
+    name: 'search_google_ads_campaigns',
+    description: 'Renvoie une liste fictive de campagnes Google Ads',
     run: async ({ input }) => {
+      const { accountId } = input.parameters || {};
       return {
+        accountId,
         campaigns: [
-          { name: "Campagne 1", cpc: 1.2 },
-          { name: "Campagne 2", cpc: 0.95 }
+          { id: '123', name: 'Campagne A', cpc: 1.15 },
+          { id: '124', name: 'Campagne B', cpc: 0.98 }
         ]
       };
     }
   }
 ];
 
-app.get('/sse', createMcpHandler({ tools }));
+// ✅ Route MCP Tools Agent compatible (SSE)
+app.post('/sse', async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  try {
+    const { input, parameters } = req.body;
+    const tool = tools.find(t => t.name === input);
+    if (!tool) {
+      res.write(`data: ${JSON.stringify({ error: 'Tool not found' })}\n\n`);
+      res.write(`data: [DONE]\n\n`);
+      return res.end();
+    }
+
+    // tool_call
+    res.write(`data: ${JSON.stringify({ tool_call: { name: tool.name, parameters } })}\n\n`);
+
+    // tool_response
+    const output = await tool.run({ input: { parameters } });
+    res.write(`data: ${JSON.stringify({ tool_response: output })}\n\n`);
+
+    // end
+    res.write(`data: [DONE]\n\n`);
+    res.end();
+  } catch (error) {
+    console.error('SSE Error:', error);
+    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    res.write(`data: [DONE]\n\n`);
+    res.end();
+  }
+});
+
+// ✅ Route d'accueil pour vérifier que le serveur est up
+app.get('/', (req, res) => {
+  res.send('✅ Eliott MCP Server is running');
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

@@ -13,13 +13,13 @@ const executeGAQLQueryRouter = require('./routes/execute_gaql_query');
 const app = express();
 app.use(express.json());
 
-// ✅ Autorise les requêtes CORS (important pour Railway/n8n)
+// ✅ Autorise les requêtes CORS
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   next();
 });
 
-// ✅ Définition des routes de l'app Eliott
+// ✅ Routes personnalisées
 app.use('/search', searchRouter);
 app.use('/fetch', fetchRouter);
 app.use('/mcp', mcpRouter);
@@ -29,7 +29,7 @@ app.use('/get_campaign_performance', getCampaignPerformanceRouter);
 app.use('/get_ad_performance', getAdPerformanceRouter);
 app.use('/execute_gaql_query', executeGAQLQueryRouter);
 
-// ✅ Liste des outils disponibles pour MCP
+// ✅ Définition des tools MCP
 const tools = [
   {
     name: "search_google_ads_campaigns",
@@ -45,6 +45,9 @@ const tools = [
     },
     run: async ({ input }) => {
       const { query, uid } = input.parameters || {};
+      console.log('🔍 Appel du tool search_google_ads_campaigns avec :', { query, uid });
+
+      // 🔁 Appelle ici ton vrai service GA plus tard
       return {
         query,
         uid,
@@ -68,6 +71,8 @@ const tools = [
     },
     run: async ({ input }) => {
       const { id } = input.parameters || {};
+      console.log('📦 Appel du tool fetch_google_ads_campaign avec ID :', id);
+
       return {
         id,
         name: "Campagne simulée",
@@ -79,14 +84,14 @@ const tools = [
   }
 ];
 
-// ✅ Endpoint SSE compatible n8n ToolMCP
+// ✅ Endpoint MCP-compatible : GET /sse (tools metadata + exécution)
 app.get('/sse', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  // ➕ Discovery des tools (pour initialisation dans n8n)
+  // Mode découverte
   if (req.query.metadata === 'true') {
     const metadata = {
       tools: tools.map(t => ({
@@ -99,34 +104,44 @@ app.get('/sse', async (req, res) => {
     return res.end();
   }
 
-  // ❗ Appel statique simulé (à adapter plus tard)
-  const tool = tools.find(t => t.name === 'search_google_ads_campaigns');
-  if (!tool) {
-    res.write(`data: ${JSON.stringify({ error: 'Tool not found' })}\n\n`);
-    res.write(`data: [DONE]\n\n`);
-    return res.end();
-  }
+  // Mode exécution
+  try {
+    const toolName = req.query.tool_name;
+    const rawParams = req.query.parameters || '{}';
+    const parameters = JSON.parse(rawParams);
 
-  // ➕ Tool call simulé
-  res.write(`data: ${JSON.stringify({ tool_call: { name: tool.name, parameters: {} } })}\n\n`);
+    const tool = tools.find(t => t.name === toolName);
 
-  // ➕ Résultat après délai
-  setTimeout(async () => {
-    const output = await tool.run({ input: { parameters: {} } });
+    if (!tool) {
+      res.write(`data: ${JSON.stringify({ error: 'Tool not found' })}\n\n`);
+      res.write(`data: [DONE]\n\n`);
+      return res.end();
+    }
+
+    res.write(`data: ${JSON.stringify({ tool_call: { name: tool.name, parameters } })}\n\n`);
+
+    const output = await tool.run({ input: { parameters } });
+
     res.write(`data: ${JSON.stringify({ tool_response: output })}\n\n`);
     res.write(`data: [DONE]\n\n`);
     res.end();
-  }, 1000);
+  } catch (err) {
+    console.error('❌ Erreur dans /sse :', err);
+    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+    res.write(`data: [DONE]\n\n`);
+    res.end();
+  }
 
   req.on('close', () => res.end());
 });
 
-// ✅ Test simple
+// ✅ Route d’accueil
 app.get('/', (req, res) => {
   res.send('✅ Eliott MCP Server is running');
 });
 
+// ✅ Lancement serveur
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`MCP Eliott server running on port ${PORT}`);
+  console.log(`🚀 MCP Eliott server running on port ${PORT}`);
 });

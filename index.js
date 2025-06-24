@@ -47,7 +47,6 @@ const tools = [
       const { query, uid } = input.parameters || {};
       console.log('🔍 Appel du tool search_google_ads_campaigns avec :', { query, uid });
 
-      // 🔁 Appelle ici ton vrai service GA plus tard
       return {
         query,
         uid,
@@ -84,55 +83,54 @@ const tools = [
   }
 ];
 
-// ✅ Endpoint MCP-compatible : GET /sse (tools metadata + exécution)
+// ✅ Endpoint MCP-compatible : GET /sse
 app.get('/sse', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  // Mode découverte
-  if (req.query.metadata === 'true') {
-    const metadata = {
-      tools: tools.map(t => ({
-        name: t.name,
-        description: t.description
-      }))
-    };
-    res.write(`data: ${JSON.stringify(metadata)}\n\n`);
-    res.write(`data: [DONE]\n\n`);
-    return res.end();
-  }
+  // Gérer la fermeture propre
+  req.on('close', () => {
+    console.log('🔌 Connexion SSE fermée');
+    res.end();
+  });
 
-  // Mode exécution
   try {
+    if (req.query.metadata === 'true') {
+      const metadata = {
+        tools: tools.map(t => ({
+          name: t.name,
+          description: t.description,
+          input_schema: t.input_schema
+        }))
+      };
+      res.write(`data: ${JSON.stringify(metadata)}\n\n`);
+      res.write(`data: [DONE]\n\n`);
+      return; // ✅ ne pas fermer ici
+    }
+
     const toolName = req.query.tool_name;
     const rawParams = req.query.parameters || '{}';
     const parameters = JSON.parse(rawParams);
 
     const tool = tools.find(t => t.name === toolName);
-
     if (!tool) {
       res.write(`data: ${JSON.stringify({ error: 'Tool not found' })}\n\n`);
       res.write(`data: [DONE]\n\n`);
-      return res.end();
+      return;
     }
 
     res.write(`data: ${JSON.stringify({ tool_call: { name: tool.name, parameters } })}\n\n`);
 
     const output = await tool.run({ input: { parameters } });
-
     res.write(`data: ${JSON.stringify({ tool_response: output })}\n\n`);
     res.write(`data: [DONE]\n\n`);
-    res.end();
   } catch (err) {
     console.error('❌ Erreur dans /sse :', err);
     res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
     res.write(`data: [DONE]\n\n`);
-    res.end();
   }
-
-  req.on('close', () => res.end());
 });
 
 // ✅ Route d’accueil

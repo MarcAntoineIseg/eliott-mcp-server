@@ -3,6 +3,11 @@ const express = require('express');
 const searchRouter = require('./routes/search');
 const fetchRouter = require('./routes/fetch');
 const mcpRouter = require('./routes/mcp');
+const listAccountsRouter = require('./routes/list_accounts');
+const runGAQLRouter = require('./routes/run_gaql');
+const getCampaignPerformanceRouter = require('./routes/get_campaign_performance');
+const getAdPerformanceRouter = require('./routes/get_ad_performance');
+const executeGAQLQueryRouter = require('./routes/execute_gaql_query');
 
 const app = express();
 app.use(express.json());
@@ -10,6 +15,11 @@ app.use(express.json());
 app.use('/search', searchRouter);
 app.use('/fetch', fetchRouter);
 app.use('/mcp', mcpRouter);
+app.use('/list_accounts', listAccountsRouter);
+app.use('/run_gaql', runGAQLRouter);
+app.use('/get_campaign_performance', getCampaignPerformanceRouter);
+app.use('/get_ad_performance', getAdPerformanceRouter);
+app.use('/execute_gaql_query', executeGAQLQueryRouter);
 
 // Route SSE avec ping régulier pour N8N
 app.get('/sse', (req, res) => {

@@ -7,6 +7,168 @@ info:
 servers:
   - url: https://eliott-mcp-server-production.up.railway.app
 paths:
+  /list_accounts:
+    post:
+      operationId: list_accounts
+      summary: Liste les comptes Google Ads accessibles par l'utilisateur
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                uid:
+                  type: string
+                  description: Identifiant utilisateur (Supabase UID)
+              required:
+                - uid
+      responses:
+        '200':
+          description: Liste des comptes Google Ads
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accounts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        customer_id:
+                          type: string
+                        name:
+                          type: string
+
+  /run_gaql:
+    post:
+      operationId: run_gaql
+      summary: Exécute une requête Google Ads Query Language (GAQL) personnalisée
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                uid:
+                  type: string
+                  description: Identifiant utilisateur (Supabase UID)
+                query:
+                  type: string
+                  description: Requête GAQL à exécuter
+              required:
+                - uid
+                - query
+      responses:
+        '200':
+          description: Résultats de la requête GAQL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+
+  /get_campaign_performance:
+    post:
+      operationId: get_campaign_performance
+      summary: Récupère les métriques de performance d'une campagne Google Ads
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                uid:
+                  type: string
+                  description: Identifiant utilisateur (Supabase UID)
+                campaign_id:
+                  type: string
+                  description: ID de la campagne Google Ads
+              required:
+                - uid
+                - campaign_id
+      responses:
+        '200':
+          description: Performance de la campagne
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  performance:
+                    type: object
+
+  /get_ad_performance:
+    post:
+      operationId: get_ad_performance
+      summary: Récupère les métriques de performance d'un groupe d'annonces Google Ads
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                uid:
+                  type: string
+                  description: Identifiant utilisateur (Supabase UID)
+                ad_group_id:
+                  type: string
+                  description: ID du groupe d'annonces Google Ads
+              required:
+                - uid
+                - ad_group_id
+      responses:
+        '200':
+          description: Performance du groupe d'annonces
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  performance:
+                    type: object
+
+  /execute_gaql_query:
+    post:
+      operationId: execute_gaql_query
+      summary: Alias de run_gaql (exécute une requête GAQL personnalisée)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                uid:
+                  type: string
+                  description: Identifiant utilisateur (Supabase UID)
+                query:
+                  type: string
+                  description: Requête GAQL à exécuter
+              required:
+                - uid
+                - query
+      responses:
+        '200':
+          description: Résultats de la requête GAQL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+
   /search_google_ads_campaigns:
     post:
       operationId: search_google_ads_campaigns

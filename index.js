@@ -21,23 +21,32 @@ app.use('/get_campaign_performance', getCampaignPerformanceRouter);
 app.use('/get_ad_performance', getAdPerformanceRouter);
 app.use('/execute_gaql_query', executeGAQLQueryRouter);
 
-// Route SSE avec ping régulier pour N8N
-app.get('/sse', (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
+// MCP Tools Agents (OpenAI/N8N) compatible SSE
+const { createMcpHandler } = require('@microsoft/fastmcp');
 
-  // Ping toutes les 15 secondes
-  const intervalId = setInterval(() => {
-    res.write(`event: ping\ndata: {}\n\n`);
-  }, 15000);
+const tools = [
+  {
+    name: "search_google_ads_campaigns",
+    description: "Renvoie une liste simulée de campagnes",
+    parameters: {
+      type: "object",
+      properties: {
+        accountId: { type: "string" }
+      },
+      required: ["accountId"]
+    },
+    run: async ({ input }) => {
+      return {
+        campaigns: [
+          { name: "Campagne 1", cpc: 1.2 },
+          { name: "Campagne 2", cpc: 0.95 }
+        ]
+      };
+    }
+  }
+];
 
-  req.on('close', () => {
-    clearInterval(intervalId);
-    res.end();
-  });
-});
+app.get('/sse', createMcpHandler({ tools }));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

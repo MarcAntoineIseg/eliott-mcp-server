@@ -11,11 +11,20 @@ const getAdPerformanceRouter = require('./routes/get_ad_performance');
 const executeGAQLQueryRouter = require('./routes/execute_gaql_query');
 
 const app = express();
+
+// ✅ Middleware JSON (doit venir AVANT les routes)
 app.use(express.json());
 
-// ✅ Autorise les requêtes CORS
+// ✅ Middleware CORS
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  next();
+});
+
+// ✅ Log utile pour debug (optionnel, à commenter en prod)
+app.use((req, res, next) => {
+  console.log(`📦 Contenu brut reçu dans req.body:`, req.body);
   next();
 });
 
@@ -90,7 +99,6 @@ app.get('/sse', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  // Gérer la fermeture propre
   req.on('close', () => {
     console.log('🔌 Connexion SSE fermée');
     res.end();
@@ -107,7 +115,7 @@ app.get('/sse', async (req, res) => {
       };
       res.write(`data: ${JSON.stringify(metadata)}\n\n`);
       res.write(`data: [DONE]\n\n`);
-      return; // ✅ ne pas fermer ici
+      return;
     }
 
     const toolName = req.query.tool_name;

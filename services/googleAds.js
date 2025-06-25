@@ -28,7 +28,7 @@ async function runGAQLQuery(tokens, query) {
   const customer_id = tokens.customer_id;
   if (!customer_id) throw new Error('Missing customer_id in tokens');
 
-  const url = `${GOOGLE_ADS_API_BASE}/customers/${customer_id}/googleAds:search`;
+  const url = `${GOOGLE_ADS_API_BASE}/customers/${customer_id}/googleAds:searchStream`;
   const body = { query };
 
   const headers = {

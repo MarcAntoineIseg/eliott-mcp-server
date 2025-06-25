@@ -15,18 +15,14 @@ async function refreshAccessToken(refresh_token) {
   return data.access_token;
 }
 
-// ✅ Obtenir un access_token valide (utilise directement celui reçu ou rafraîchit si besoin)
+// ✅ Obtenir un access_token valide (direct ou via refresh_token)
 async function getValidAccessToken(tokens) {
-  if (tokens.access_token) {
-    return tokens.access_token;
-  }
-  if (!tokens.refresh_token) {
-    throw new Error('Missing refresh_token');
-  }
+  if (tokens.access_token) return tokens.access_token;
+  if (!tokens.refresh_token) throw new Error('Missing refresh_token');
   return await refreshAccessToken(tokens.refresh_token);
 }
 
-// ✅ Exécute une requête GAQL avec les tokens fournis
+// ✅ Exécute une requête GAQL avec les bons headers
 async function runGAQLQuery(tokens, query) {
   const access_token = await getValidAccessToken(tokens);
   const customer_id = tokens.customer_id;
@@ -34,18 +30,19 @@ async function runGAQLQuery(tokens, query) {
 
   const url = `${GOOGLE_ADS_API_BASE}/customers/${customer_id}/googleAds:search`;
   const body = { query };
+
   const headers = {
     Authorization: `Bearer ${access_token}`,
     'developer-token': tokens.developer_token || process.env.GOOGLE_DEVELOPER_TOKEN || '',
-    'login-customer-id': tokens.login_customer_id || customer_id,
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json'
+    // ❌ Ne PAS inclure login-customer-id si tu n’utilises pas de MCC
   };
 
   const { data } = await axios.post(url, body, { headers });
   return data.results || [];
 }
 
-// ✅ Requête de recherche (optionnelle, tu peux adapter)
+// ✅ Requête personnalisée (à adapter à ton usage)
 async function getGoogleAdsCampaigns(tokens, textQuery) {
   const gaql = `SELECT campaign.id, campaign.name, campaign.status 
     FROM campaign 
@@ -54,7 +51,7 @@ async function getGoogleAdsCampaigns(tokens, textQuery) {
   return await runGAQLQuery(tokens, gaql);
 }
 
-// ✅ Détail campagne (mock ou à connecter)
+// ✅ Simule une récupération de campagne par ID
 async function fetchCampaignById(id) {
   return {
     id,
@@ -65,7 +62,7 @@ async function fetchCampaignById(id) {
   };
 }
 
-// ✅ Liste des comptes accessibles
+// ✅ Liste des comptes accessibles (simple pour le moment)
 async function listGoogleAdsAccounts(tokens) {
   if (tokens.customer_id) {
     return [{ customer_id: tokens.customer_id, name: `Account ${tokens.customer_id}` }];
@@ -73,7 +70,7 @@ async function listGoogleAdsAccounts(tokens) {
   return [{ customer_id: '1234567890', name: 'Demo Account' }];
 }
 
-// ✅ Performance d’une campagne
+// ✅ Détail performance campagne
 async function getCampaignPerformance(tokens, campaign_id) {
   const query = `
     SELECT campaign.id, campaign.name, 
@@ -86,7 +83,7 @@ async function getCampaignPerformance(tokens, campaign_id) {
   return results[0] || {};
 }
 
-// ✅ Performance d’un groupe d’annonces
+// ✅ Détail performance ad group
 async function getAdPerformance(tokens, ad_group_id) {
   const query = `
     SELECT ad_group.id, ad_group.name, 

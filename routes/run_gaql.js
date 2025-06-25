@@ -1,3 +1,5 @@
+console.log('📦 Contenu brut reçu dans req.body:', req.body);
+
 const express = require('express');
 const router = express.Router();
 const { runGAQLQuery } = require('../services/googleAds');

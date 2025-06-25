@@ -13,6 +13,16 @@ router.post('/', async (req, res) => {
     gaql_query
   } = req.body;
 
+  // 🔍 Log pour vérification
+  console.log('▶️ Requête reçue /run_gaql avec refresh_token :', refresh_token ? '[OK]' : '[ABSENT]');
+  console.log('Détail des tokens :', {
+    access_token,
+    refresh_token,
+    customer_id,
+    login_customer_id,
+    developer_token
+  });
+
   try {
     const tokens = {
       access_token,

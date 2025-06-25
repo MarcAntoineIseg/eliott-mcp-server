@@ -35,8 +35,12 @@ async function runGAQLQuery(tokens, query) {
     Authorization: `Bearer ${access_token}`,
     'developer-token': tokens.developer_token || process.env.GOOGLE_DEVELOPER_TOKEN || '',
     'Content-Type': 'application/json'
-    // ❌ Ne PAS inclure login-customer-id si tu n’utilises pas de MCC
   };
+
+  // ✅ Ajout de login-customer-id si présent (utilisé pour le MCC)
+  if (tokens.login_customer_id) {
+    headers['login-customer-id'] = tokens.login_customer_id;
+  }
 
   const { data } = await axios.post(url, body, { headers });
   return data.results || [];

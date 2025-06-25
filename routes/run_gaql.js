@@ -1,5 +1,3 @@
-console.log('📦 Contenu brut reçu dans req.body:', req.body);
-
 const express = require('express');
 const router = express.Router();
 const { runGAQLQuery } = require('../services/googleAds');
@@ -16,6 +14,7 @@ router.post('/', async (req, res) => {
   } = req.body;
 
   // 🔍 Log pour vérification
+  console.log('📦 Contenu brut reçu dans req.body:', req.body);
   console.log('▶️ Requête reçue /run_gaql avec refresh_token :', refresh_token ? '[OK]' : '[ABSENT]');
   console.log('Détail des tokens :', {
     access_token,

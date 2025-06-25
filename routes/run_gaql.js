@@ -9,7 +9,8 @@ router.post('/', async (req, res) => {
     refresh_token,
     customer_id,
     developer_token,
-    gaql_query
+    gaql_query,
+    login_customer_id
   } = req.body;
 
   // 🔍 Logs de debug
@@ -32,7 +33,8 @@ router.post('/', async (req, res) => {
       access_token,
       refresh_token,
       customer_id,
-      developer_token
+      developer_token, 
+      login_customer_id
     };
 
     const results = await runGAQLQuery(tokens, gaql_query);

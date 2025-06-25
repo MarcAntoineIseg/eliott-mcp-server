@@ -1,16 +1,31 @@
 const express = require('express');
 const router = express.Router();
-const { getUserTokens } = require('../services/supabaseClient');
 const { runGAQLQuery } = require('../services/googleAds');
 
 // POST /run_gaql
 router.post('/', async (req, res) => {
-  const { uid, query } = req.body;
+  const {
+    access_token,
+    refresh_token,
+    customer_id,
+    login_customer_id,
+    developer_token,
+    gaql_query
+  } = req.body;
+
   try {
-    const tokens = await getUserTokens(uid, 'google_ads');
-    const results = await runGAQLQuery(tokens, query);
+    const tokens = {
+      access_token,
+      refresh_token,
+      customer_id,
+      login_customer_id,
+      developer_token
+    };
+
+    const results = await runGAQLQuery(tokens, gaql_query);
     res.json({ results });
   } catch (err) {
+    console.error('❌ Erreur run_gaql:', err);
     res.status(400).json({ error: err.message });
   }
 });

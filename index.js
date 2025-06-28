@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 
-// ✅ Routes REST (pour debug/local)
 const searchRouter = require('./routes/search');
 const fetchRouter = require('./routes/fetch');
 const mcpRouter = require('./routes/mcp');
@@ -14,27 +13,25 @@ const executeGAQLQueryRouter = require('./routes/execute_gaql_query');
 const ga4Router = require('./routes/ga4');
 
 const app = express();
-
-// ✅ Middleware JSON
 app.use(express.json());
 
-// ✅ Middleware CORS complet
+// CORS & SSE headers
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-  res.setHeader('Connection', 'keep-alive'); // <= important pour SSE
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, X-Client-Id');
+  res.setHeader('Connection', 'keep-alive');
   res.setHeader('Cache-Control', 'no-cache');
   next();
 });
 
-// ✅ Debug request body
+// Debug
 app.use((req, res, next) => {
   console.log('📦 Body:', req.body);
   next();
 });
 
-// ✅ REST endpoints (pour debug/local)
+// REST endpoints (debug/local)
 app.use('/search', searchRouter);
 app.use('/fetch', fetchRouter);
 app.use('/mcp', mcpRouter);
@@ -45,7 +42,7 @@ app.use('/get_ad_performance', getAdPerformanceRouter);
 app.use('/execute_gaql_query', executeGAQLQueryRouter);
 app.use('/run_ga4_query', ga4Router);
 
-// ✅ MCP tools (déclarés pour le manifest MCP)
+// MCP tools
 const tools = [
   {
     name: 'get_campaign_performance',
@@ -158,57 +155,66 @@ const tools = [
   }
 ];
 
-// ✅ MCP Tools Agent SSE endpoint (manifest + JSON-RPC)
-// GET /sse : Manifest MCP (n8n/OpenAI compatible)
+// --- MCP Tools Agent SSE/JSON-RPC ---
+
+const clients = new Map(); // Map<clientId, res>
+
+function getClientId(req) {
+  // Utilise un header custom ou fallback sur IP (pour démo mono-utilisateur)
+  return req.headers['x-client-id'] || req.ip;
+}
+
+// GET /sse : ouvre le flux SSE, envoie le manifest, garde la connexion ouverte
 app.get('/sse', (req, res) => {
+  const clientId = getClientId(req);
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  res.write(`data: ${JSON.stringify({ tools: tools.map(({ name, description, input_schema }) => ({ name, description, input_schema })) })}\n\n`);
-  res.write(`data: [DONE]\n\n`);
-  req.on('close', () => res.end());
+  clients.set(clientId, res);
+
+  // Envoie le manifest MCP
+  res.write(`data: ${JSON.stringify({ type: 'manifest', tools: tools.map(({ name, description, input_schema }) => ({ name, description, input_schema })) })}\n\n`);
+
+  req.on('close', () => {
+    clients.delete(clientId);
+  });
 });
 
-// POST /sse : JSON-RPC (tools/invoke, tools/list)
-app.post('/sse', express.json(), async (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
+// POST /sse : reçoit JSON-RPC, exécute, push la réponse dans le flux SSE du client
+app.post('/sse', async (req, res) => {
+  const clientId = getClientId(req);
+  const sseRes = clients.get(clientId);
+  if (!sseRes) {
+    return res.status(400).json({ error: 'No SSE connection found for client.' });
+  }
 
-  const { id, method, params } = req.body;
-
-  if (method === 'tools/invoke' && params?.tool_name) {
-    const tool = tools.find(t => t.name === params.tool_name);
+  const { id, type, name, arguments: args } = req.body;
+  if (type === 'call') {
+    const tool = tools.find(t => t.name === name);
     if (!tool) {
-      res.write(`data: ${JSON.stringify({ id, error: 'Tool not found' })}\n\n`);
-      res.write(`data: [DONE]\n\n`);
-      return res.end();
+      sseRes.write(`data: ${JSON.stringify({ id, type: 'call_result', error: 'Tool not found' })}\n\n`);
+      return res.json({ status: 'error' });
     }
     try {
-      const output = await tool.run({ input: { parameters: params.parameters } });
-      res.write(`data: ${JSON.stringify({ id, result: output })}\n\n`);
-      res.write(`data: [DONE]\n\n`);
-      return res.end();
+      const output = await tool.run({ input: JSON.parse(args) });
+      sseRes.write(`data: ${JSON.stringify({ id, type: 'call_result', output })}\n\n`);
+      return res.json({ status: 'ok' });
     } catch (err) {
-      res.write(`data: ${JSON.stringify({ id, error: err.message })}\n\n`);
-      res.write(`data: [DONE]\n\n`);
-      return res.end();
+      sseRes.write(`data: ${JSON.stringify({ id, type: 'call_result', error: err.message })}\n\n`);
+      return res.json({ status: 'error' });
     }
-  } else if (method === 'tools/list') {
-    res.write(`data: ${JSON.stringify({ id, tools: tools.map(({ name, description, input_schema }) => ({ name, description, input_schema })) })}\n\n`);
-    res.write(`data: [DONE]\n\n`);
-    return res.end();
+  } else if (type === 'tools_list') {
+    sseRes.write(`data: ${JSON.stringify({ id, type: 'tools_list', tools: tools.map(({ name, description, input_schema }) => ({ name, description, input_schema })) })}\n\n`);
+    return res.json({ status: 'ok' });
   } else {
-    res.write(`data: ${JSON.stringify({ id, error: 'Unknown method' })}\n\n`);
-    res.write(`data: [DONE]\n\n`);
-    return res.end();
+    sseRes.write(`data: ${JSON.stringify({ id, type: 'error', error: 'Unknown method' })}\n\n`);
+    return res.json({ status: 'error' });
   }
 });
 
-// ✅ Health check
+// Healthcheck
 app.get('/', (_, res) => {
   res.send('✅ Eliott MCP Server is running');
 });

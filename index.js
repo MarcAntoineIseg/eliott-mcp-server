@@ -9,7 +9,7 @@ const runGAQLRouter = require('./routes/run_gaql');
 const getCampaignPerformanceRouter = require('./routes/get_campaign_performance');
 const getAdPerformanceRouter = require('./routes/get_ad_performance');
 const executeGAQLQueryRouter = require('./routes/execute_gaql_query');
-
+const ga4Router = require('./routes/ga4');
 const app = express();
 
 // ✅ Middleware JSON (doit venir AVANT les routes)
@@ -36,7 +36,8 @@ app.use('/list_accounts', listAccountsRouter);
 app.use('/run_gaql', runGAQLRouter);
 app.use('/get_campaign_performance', getCampaignPerformanceRouter);
 app.use('/get_ad_performance', getAdPerformanceRouter);
-app.use('/execute_gaql_query', executeGAQLQueryRouter);
+app.use('/execute_gaql_query', executeGAQLQueryRouter)
+app.use('/run_ga4_query', ga4Router);
 
 // ✅ Définition des tools MCP
 const tools = [

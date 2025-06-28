@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 
-// ✅ Routes REST
+// ✅ Routes REST (pour debug/local)
 const searchRouter = require('./routes/search');
 const fetchRouter = require('./routes/fetch');
 const mcpRouter = require('./routes/mcp');
@@ -34,7 +34,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// ✅ REST endpoints
+// ✅ REST endpoints (pour debug/local)
 app.use('/search', searchRouter);
 app.use('/fetch', fetchRouter);
 app.use('/mcp', mcpRouter);
@@ -45,7 +45,7 @@ app.use('/get_ad_performance', getAdPerformanceRouter);
 app.use('/execute_gaql_query', executeGAQLQueryRouter);
 app.use('/run_ga4_query', ga4Router);
 
-// ✅ MCP tools
+// ✅ MCP tools (déclarés pour le manifest MCP)
 const tools = [
   {
     name: 'get_campaign_performance',
@@ -158,47 +158,51 @@ const tools = [
   }
 ];
 
-// ✅ SSE endpoint (ChatGPT MCP)
-app.get('/sse', async (req, res) => {
+// ✅ MCP Tools Agent SSE endpoint (manifest + JSON-RPC)
+// GET /sse : Manifest MCP (n8n/OpenAI compatible)
+app.get('/sse', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  console.log('🔄 /sse hit, query:', req.query);
+  res.write(`data: ${JSON.stringify({ tools: tools.map(({ name, description, input_schema }) => ({ name, description, input_schema })) })}\n\n`);
+  res.write(`data: [DONE]\n\n`);
+  req.on('close', () => res.end());
+});
 
-  const isMetadataRequest =
-    req.query.metadata === 'true' ||
-    (Object.keys(req.query).length === 0);
+// POST /sse : JSON-RPC (tools/invoke, tools/list)
+app.post('/sse', express.json(), async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
 
-  if (isMetadataRequest) {
-    const payload = {
-      tools: tools.map(({ name, description, input_schema }) => ({ name, description, input_schema }))
-    };
-    res.write(`data: ${JSON.stringify(payload)}\n\n`);
-    res.write(`data: [DONE]\n\n`);
-    return res.end();
-  }
+  const { id, method, params } = req.body;
 
-  try {
-    const toolName = req.query.tool_name;
-    const parameters = JSON.parse(req.query.parameters || '{}');
-    const tool = tools.find(t => t.name === toolName);
-
+  if (method === 'tools/invoke' && params?.tool_name) {
+    const tool = tools.find(t => t.name === params.tool_name);
     if (!tool) {
-      res.write(`data: ${JSON.stringify({ error: 'Tool not found' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ id, error: 'Tool not found' })}\n\n`);
       res.write(`data: [DONE]\n\n`);
       return res.end();
     }
-
-    res.write(`data: ${JSON.stringify({ tool_call: { name: tool.name, parameters } })}\n\n`);
-    const output = await tool.run({ input: { parameters } });
-    res.write(`data: ${JSON.stringify({ tool_response: output })}\n\n`);
+    try {
+      const output = await tool.run({ input: { parameters: params.parameters } });
+      res.write(`data: ${JSON.stringify({ id, result: output })}\n\n`);
+      res.write(`data: [DONE]\n\n`);
+      return res.end();
+    } catch (err) {
+      res.write(`data: ${JSON.stringify({ id, error: err.message })}\n\n`);
+      res.write(`data: [DONE]\n\n`);
+      return res.end();
+    }
+  } else if (method === 'tools/list') {
+    res.write(`data: ${JSON.stringify({ id, tools: tools.map(({ name, description, input_schema }) => ({ name, description, input_schema })) })}\n\n`);
     res.write(`data: [DONE]\n\n`);
     return res.end();
-  } catch (err) {
-    console.error('❌ /sse error:', err);
-    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+  } else {
+    res.write(`data: ${JSON.stringify({ id, error: 'Unknown method' })}\n\n`);
     res.write(`data: [DONE]\n\n`);
     return res.end();
   }

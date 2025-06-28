@@ -43,7 +43,7 @@ const tools = [
   {
     name: 'get_campaign_performance',
     description: 'Retourne les performances des campagnes Google Ads',
-    input_schema: {
+    inputSchema: {
       type: 'object',
       properties: {
         customer_id: { type: 'string' },
@@ -59,7 +59,7 @@ const tools = [
   {
     name: 'get_ad_performance',
     description: 'Retourne les performances des annonces Google Ads',
-    input_schema: {
+    inputSchema: {
       type: 'object',
       properties: {
         customer_id: { type: 'string' },
@@ -75,7 +75,7 @@ const tools = [
   {
     name: 'run_gaql',
     description: 'Exécute une requête GAQL brute sur un compte Google Ads',
-    input_schema: {
+    inputSchema: {
       type: 'object',
       properties: {
         access_token: { type: 'string' },
@@ -92,7 +92,7 @@ const tools = [
   {
     name: 'execute_gaql_query',
     description: 'Exécute une requête GAQL préconfigurée avec logique métier',
-    input_schema: {
+    inputSchema: {
       type: 'object',
       properties: {
         access_token: { type: 'string' },
@@ -111,7 +111,7 @@ const tools = [
   {
     name: 'list_accounts',
     description: 'Retourne la liste des comptes accessibles par l’utilisateur',
-    input_schema: {
+    inputSchema: {
       type: 'object',
       properties: {
         access_token: { type: 'string' }
@@ -126,7 +126,7 @@ const tools = [
   {
     name: 'run_ga4_query',
     description: 'Exécute un rapport Google Analytics 4 avec dimensions et métriques',
-    input_schema: {
+    inputSchema: {
       type: 'object',
       properties: {
         access_token: { type: 'string' },
@@ -161,7 +161,7 @@ function getClientId(req) {
 
 function getManifest() {
   return {
-    tools: tools.map(({ name, description, input_schema }) => ({ name, description, input_schema }))
+    tools: tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }))
   };
 }
 

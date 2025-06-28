@@ -121,7 +121,7 @@ const tools = [
   },
   {
     name: "run_ga4_report",
-    description: "Exécute une requête GA4 personnalisée avec dimensions, métriques et plage de dates.",
+    description: "Exécute une requête GA4 personnalisée sur une propriété Google Analytics 4 (sessions, utilisateurs, pages vues...) en fonction de dimensions, de métriques et d'une plage de dates.",
     input_schema: {
       type: "object",
       properties: {

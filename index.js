@@ -2,15 +2,15 @@ require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 
-const searchRouter = require('./routes/search');
-const fetchRouter = require('./routes/fetch');
-const mcpRouter = require('./routes/mcp');
-const listAccountsRouter = require('./routes/list_accounts');
-const runGAQLRouter = require('./routes/run_gaql');
+const searchRouter                 = require('./routes/search');
+const fetchRouter                  = require('./routes/fetch');
+const mcpRouter                    = require('./routes/mcp');
+const listAccountsRouter           = require('./routes/list_accounts');
+const runGAQLRouter                = require('./routes/run_gaql');
 const getCampaignPerformanceRouter = require('./routes/get_campaign_performance');
-const getAdPerformanceRouter = require('./routes/get_ad_performance');
-const executeGAQLQueryRouter = require('./routes/execute_gaql_query');
-const ga4Router = require('./routes/ga4');
+const getAdPerformanceRouter       = require('./routes/get_ad_performance');
+const executeGAQLQueryRouter       = require('./routes/execute_gaql_query');
+const ga4Router                    = require('./routes/ga4');
 
 const app = express();
 
@@ -32,15 +32,15 @@ app.use((req, res, next) => {
 });
 
 // ✅ Routes personnalisées
-app.use('/search', searchRouter);
-app.use('/fetch', fetchRouter);
-app.use('/mcp', mcpRouter);
-app.use('/list_accounts', listAccountsRouter);
-app.use('/run_gaql', runGAQLRouter);
+app.use('/search',                  searchRouter);
+app.use('/fetch',                   fetchRouter);
+app.use('/mcp',                     mcpRouter);
+app.use('/list_accounts',           listAccountsRouter);
+app.use('/run_gaql',                runGAQLRouter);
 app.use('/get_campaign_performance', getCampaignPerformanceRouter);
-app.use('/get_ad_performance', getAdPerformanceRouter);
-app.use('/execute_gaql_query', executeGAQLQueryRouter);
-app.use('/run_ga4_query', ga4Router);
+app.use('/get_ad_performance',      getAdPerformanceRouter);
+app.use('/execute_gaql_query',      executeGAQLQueryRouter);
+app.use('/run_ga4_query',           ga4Router);
 
 // ✅ Tools MCP
 const tools = [
@@ -51,7 +51,7 @@ const tools = [
       type: "object",
       properties: {
         query: { type: "string", description: "Recherche textuelle sur les campagnes." },
-        uid: { type: "string", description: "Identifiant utilisateur (Supabase UID)" }
+        uid:   { type: "string", description: "Identifiant utilisateur (Supabase UID)" }
       },
       required: ["query", "uid"],
       additionalProperties: false
@@ -59,7 +59,6 @@ const tools = [
     run: async ({ input }) => {
       const { query, uid } = input.parameters || {};
       console.log('🔍 Appel du tool search_google_ads_campaigns avec :', { query, uid });
-
       return {
         query,
         uid,
@@ -84,7 +83,6 @@ const tools = [
     run: async ({ input }) => {
       const { id } = input.parameters || {};
       console.log('📦 Appel du tool fetch_google_ads_campaign avec ID :', id);
-
       return {
         id,
         name: "Campagne simulée",
@@ -107,16 +105,10 @@ const tools = [
     },
     run: async ({ input }) => {
       const { access_token } = input.parameters;
-
       const response = await axios.get(
         'https://analyticsadmin.googleapis.com/v1beta/accountSummaries',
-        {
-          headers: {
-            Authorization: `Bearer ${access_token}`
-          }
-        }
+        { headers: { Authorization: `Bearer ${access_token}` } }
       );
-
       return response.data.accountSummaries || [];
     }
   },
@@ -127,39 +119,29 @@ const tools = [
       type: "object",
       properties: {
         access_token: { type: "string" },
-        property_id: { type: "string" },
-        dimensions: {
-          type: "array",
-          items: { type: "string" }
-        },
-        metrics: {
-          type: "array",
-          items: { type: "string" }
-        },
-        start_date: { type: "string" },
-        end_date: { type: "string" }
+        property_id:  { type: "string" },
+        dimensions:   { type: "array",  items: { type: "string" } },
+        metrics:      { type: "array",  items: { type: "string" } },
+        start_date:   { type: "string" },
+        end_date:     { type: "string" }
       },
       required: ["access_token", "property_id", "dimensions", "metrics", "start_date", "end_date"],
       additionalProperties: false
     },
     run: async ({ input }) => {
       const { access_token, property_id, dimensions, metrics, start_date, end_date } = input.parameters;
-
       const url = `https://analyticsdata.googleapis.com/v1beta/properties/${property_id}:runReport`;
-
       const requestBody = {
         dimensions: dimensions.map(name => ({ name })),
-        metrics: metrics.map(name => ({ name })),
+        metrics:    metrics.map(name => ({ name })),
         dateRanges: [{ startDate: start_date, endDate: end_date }]
       };
-
       const response = await axios.post(url, requestBody, {
         headers: {
           Authorization: `Bearer ${access_token}`,
           'Content-Type': 'application/json'
         }
       });
-
       return response.data;
     }
   }
@@ -167,50 +149,51 @@ const tools = [
 
 // ✅ Endpoint MCP-compatible : GET /sse
 app.get('/sse', async (req, res) => {
+  // SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  req.on('close', () => {
-    console.log('🔌 Connexion SSE fermée');
-    res.end();
-  });
+  // Si on veut juste la liste des tools
+  if (req.query.metadata === 'true') {
+    const metadata = {
+      tools: tools.map(t => ({
+        name: t.name,
+        description: t.description,
+        input_schema: t.input_schema
+      }))
+    };
+    res.write(`data: ${JSON.stringify(metadata)}\n\n`);
+    res.write(`data: [DONE]\n\n`);
+    return res.end();  // <- ici on ferme la connexion pour N8N
+  }
 
   try {
-    if (req.query.metadata === 'true') {
-      const metadata = {
-        tools: tools.map(t => ({
-          name: t.name,
-          description: t.description,
-          input_schema: t.input_schema
-        }))
-      };
-      res.write(`data: ${JSON.stringify(metadata)}\n\n`);
-      res.write(`data: [DONE]\n\n`);
-      return;
-    }
-
-    const toolName = req.query.tool_name;
-    const rawParams = req.query.parameters || '{}';
+    const toolName   = req.query.tool_name;
+    const rawParams  = req.query.parameters || '{}';
     const parameters = JSON.parse(rawParams);
 
     const tool = tools.find(t => t.name === toolName);
     if (!tool) {
       res.write(`data: ${JSON.stringify({ error: 'Tool not found' })}\n\n`);
       res.write(`data: [DONE]\n\n`);
-      return;
+      return res.end();  // <- et ici aussi
     }
 
+    // Envoi du tool_call
     res.write(`data: ${JSON.stringify({ tool_call: { name: tool.name, parameters } })}\n\n`);
 
+    // Exécution du tool
     const output = await tool.run({ input: { parameters } });
     res.write(`data: ${JSON.stringify({ tool_response: output })}\n\n`);
     res.write(`data: [DONE]\n\n`);
+    return res.end();    // <- fermeture finale
   } catch (err) {
     console.error('❌ Erreur dans /sse :', err);
     res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
     res.write(`data: [DONE]\n\n`);
+    return res.end();
   }
 });
 

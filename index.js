@@ -4,7 +4,7 @@ const axios = require('axios');
 
 const searchRouter = require('./routes/search');
 const fetchRouter = require('./routes/fetch');
-const mcpRouter = require('./routes/mcp');
+// const mcpRouter = require('./routes/mcp'); // à débrancher si plus utile
 const listAccountsRouter = require('./routes/list_accounts');
 const runGAQLRouter = require('./routes/run_gaql');
 const getCampaignPerformanceRouter = require('./routes/get_campaign_performance');
@@ -34,7 +34,7 @@ app.use((req, res, next) => {
 // REST endpoints (debug/local)
 app.use('/search', searchRouter);
 app.use('/fetch', fetchRouter);
-app.use('/mcp', mcpRouter);
+// app.use('/mcp', mcpRouter); // à débrancher si plus utile
 app.use('/list_accounts', listAccountsRouter);
 app.use('/run_gaql', runGAQLRouter);
 app.use('/get_campaign_performance', getCampaignPerformanceRouter);
@@ -56,7 +56,7 @@ const tools = [
       required: ['customer_id', 'access_token']
     },
     run: async ({ input }) => {
-      const res = await axios.post(`${process.env.INTERNAL_API_URL}/get_campaign_performance`, input.parameters);
+      const res = await axios.post(`${process.env.INTERNAL_API_URL}/get_campaign_performance`, input);
       return res.data;
     }
   },
@@ -72,7 +72,7 @@ const tools = [
       required: ['customer_id', 'access_token']
     },
     run: async ({ input }) => {
-      const res = await axios.post(`${process.env.INTERNAL_API_URL}/get_ad_performance`, input.parameters);
+      const res = await axios.post(`${process.env.INTERNAL_API_URL}/get_ad_performance`, input);
       return res.data;
     }
   },
@@ -89,7 +89,7 @@ const tools = [
       required: ['access_token', 'customer_id', 'query']
     },
     run: async ({ input }) => {
-      const res = await axios.post(`${process.env.INTERNAL_API_URL}/run_gaql`, input.parameters);
+      const res = await axios.post(`${process.env.INTERNAL_API_URL}/run_gaql`, input);
       return res.data;
     }
   },
@@ -108,7 +108,7 @@ const tools = [
       required: ['access_token', 'customer_id', 'date_range', 'dimension', 'metric']
     },
     run: async ({ input }) => {
-      const res = await axios.post(`${process.env.INTERNAL_API_URL}/execute_gaql_query`, input.parameters);
+      const res = await axios.post(`${process.env.INTERNAL_API_URL}/execute_gaql_query`, input);
       return res.data;
     }
   },
@@ -123,7 +123,7 @@ const tools = [
       required: ['access_token']
     },
     run: async ({ input }) => {
-      const res = await axios.post(`${process.env.INTERNAL_API_URL}/list_accounts`, input.parameters);
+      const res = await axios.post(`${process.env.INTERNAL_API_URL}/list_accounts`, input);
       return res.data;
     }
   },
@@ -149,7 +149,7 @@ const tools = [
       required: ['access_token', 'property_id', 'start_date', 'end_date', 'metrics']
     },
     run: async ({ input }) => {
-      const res = await axios.post(`${process.env.INTERNAL_API_URL}/run_ga4_query`, input.parameters);
+      const res = await axios.post(`${process.env.INTERNAL_API_URL}/run_ga4_query`, input);
       return res.data;
     }
   }
@@ -157,11 +157,18 @@ const tools = [
 
 // --- MCP Tools Agent SSE/JSON-RPC ---
 
-const clients = new Map(); // Map<clientId, res>
+const clients = new Map(); // Map<clientId, {res, pingInterval}>
 
 function getClientId(req) {
   // Utilise un header custom ou fallback sur IP (pour démo mono-utilisateur)
   return req.headers['x-client-id'] || req.ip;
+}
+
+function getManifest() {
+  return {
+    type: 'manifest',
+    tools: tools.map(({ name, description, input_schema }) => ({ name, description, input_schema }))
+  };
 }
 
 // GET /sse : ouvre le flux SSE, envoie le manifest, garde la connexion ouverte
@@ -172,12 +179,21 @@ app.get('/sse', (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  clients.set(clientId, res);
+  // Ferme l'ancienne connexion si elle existe
+  if (clients.has(clientId)) {
+    const old = clients.get(clientId);
+    try { old.res.end(); } catch {}
+    clearInterval(old.pingInterval);
+  }
+  // Ping toutes les 20s pour garder la connexion ouverte
+  const pingInterval = setInterval(() => res.write(':\n\n'), 20000);
+  clients.set(clientId, { res, pingInterval });
 
-  // Envoie le manifest MCP
-  res.write(`data: ${JSON.stringify({ type: 'manifest', tools: tools.map(({ name, description, input_schema }) => ({ name, description, input_schema })) })}\n\n`);
+  // Envoie manifest MCP
+  res.write(`data: ${JSON.stringify(getManifest())}\n\n`);
 
   req.on('close', () => {
+    clearInterval(pingInterval);
     clients.delete(clientId);
   });
 });
@@ -185,33 +201,45 @@ app.get('/sse', (req, res) => {
 // POST /sse : reçoit JSON-RPC, exécute, push la réponse dans le flux SSE du client
 app.post('/sse', async (req, res) => {
   const clientId = getClientId(req);
-  const sseRes = clients.get(clientId);
-  if (!sseRes) {
+  const client = clients.get(clientId);
+  if (!client) {
     return res.status(400).json({ error: 'No SSE connection found for client.' });
   }
+  const sseRes = client.res;
 
-  const { id, type, name, arguments: args } = req.body;
-  if (type === 'call') {
-    const tool = tools.find(t => t.name === name);
+  const { id, type, method, name, arguments: args } = req.body;
+
+  // MCP handshake
+  if (method === 'initialize') {
+    sseRes.write(`data: ${JSON.stringify({ id, type: 'initialize_result', result: { server: 'eliott-mcp-server', protocol: 'MCP/1.0' } })}\n\n`);
+    return res.sendStatus(200);
+  }
+  if (method === 'tools/list' || type === 'tools_list') {
+    sseRes.write(`data: ${JSON.stringify({ id, type: 'tools_list', tools: getManifest().tools })}\n\n`);
+    return res.sendStatus(200);
+  }
+  if (method === 'tools/invoke' || type === 'call') {
+    const toolName = name || (args && args.tool_name) || (req.body.tool_name);
+    const tool = tools.find(t => t.name === toolName);
     if (!tool) {
       sseRes.write(`data: ${JSON.stringify({ id, type: 'call_result', error: 'Tool not found' })}\n\n`);
-      return res.json({ status: 'error' });
+      return res.sendStatus(200);
     }
     try {
-      const output = await tool.run({ input: JSON.parse(args) });
+      let input = args;
+      if (typeof input === 'string') input = JSON.parse(input);
+      if (input && input.parameters) input = input.parameters;
+      const output = await tool.run({ input });
       sseRes.write(`data: ${JSON.stringify({ id, type: 'call_result', output })}\n\n`);
-      return res.json({ status: 'ok' });
+      return res.sendStatus(200);
     } catch (err) {
       sseRes.write(`data: ${JSON.stringify({ id, type: 'call_result', error: err.message })}\n\n`);
-      return res.json({ status: 'error' });
+      return res.sendStatus(200);
     }
-  } else if (type === 'tools_list') {
-    sseRes.write(`data: ${JSON.stringify({ id, type: 'tools_list', tools: tools.map(({ name, description, input_schema }) => ({ name, description, input_schema })) })}\n\n`);
-    return res.json({ status: 'ok' });
-  } else {
-    sseRes.write(`data: ${JSON.stringify({ id, type: 'error', error: 'Unknown method' })}\n\n`);
-    return res.json({ status: 'error' });
   }
+  // fallback
+  sseRes.write(`data: ${JSON.stringify({ id, type: 'error', error: 'Unknown method' })}\n\n`);
+  res.sendStatus(200);
 });
 
 // Healthcheck

@@ -32,15 +32,15 @@ app.use((req, res, next) => {
 });
 
 // ✅ Routes personnalisées
-app.use('/search',                  searchRouter);
-app.use('/fetch',                   fetchRouter);
-app.use('/mcp',                     mcpRouter);
-app.use('/list_accounts',           listAccountsRouter);
-app.use('/run_gaql',                runGAQLRouter);
+app.use('/search',                   searchRouter);
+app.use('/fetch',                    fetchRouter);
+app.use('/mcp',                      mcpRouter);
+app.use('/list_accounts',            listAccountsRouter);
+app.use('/run_gaql',                 runGAQLRouter);
 app.use('/get_campaign_performance', getCampaignPerformanceRouter);
-app.use('/get_ad_performance',      getAdPerformanceRouter);
-app.use('/execute_gaql_query',      executeGAQLQueryRouter);
-app.use('/run_ga4_query',           ga4Router);
+app.use('/get_ad_performance',       getAdPerformanceRouter);
+app.use('/execute_gaql_query',       executeGAQLQueryRouter);
+app.use('/run_ga4_query',            ga4Router);
 
 // ✅ Tools MCP
 const tools = [
@@ -58,7 +58,7 @@ const tools = [
     },
     run: async ({ input }) => {
       const { query, uid } = input.parameters || {};
-      console.log('🔍 Appel du tool search_google_ads_campaigns avec :', { query, uid });
+      console.log('🔍 search_google_ads_campaigns:', { query, uid });
       return {
         query,
         uid,
@@ -82,7 +82,7 @@ const tools = [
     },
     run: async ({ input }) => {
       const { id } = input.parameters || {};
-      console.log('📦 Appel du tool fetch_google_ads_campaign avec ID :', id);
+      console.log('📦 fetch_google_ads_campaign:', id);
       return {
         id,
         name: "Campagne simulée",
@@ -105,11 +105,11 @@ const tools = [
     },
     run: async ({ input }) => {
       const { access_token } = input.parameters;
-      const response = await axios.get(
+      const { data } = await axios.get(
         'https://analyticsadmin.googleapis.com/v1beta/accountSummaries',
         { headers: { Authorization: `Bearer ${access_token}` } }
       );
-      return response.data.accountSummaries || [];
+      return data.accountSummaries || [];
     }
   },
   {
@@ -131,18 +131,18 @@ const tools = [
     run: async ({ input }) => {
       const { access_token, property_id, dimensions, metrics, start_date, end_date } = input.parameters;
       const url = `https://analyticsdata.googleapis.com/v1beta/properties/${property_id}:runReport`;
-      const requestBody = {
+      const body = {
         dimensions: dimensions.map(name => ({ name })),
         metrics:    metrics.map(name => ({ name })),
         dateRanges: [{ startDate: start_date, endDate: end_date }]
       };
-      const response = await axios.post(url, requestBody, {
+      const { data } = await axios.post(url, body, {
         headers: {
           Authorization: `Bearer ${access_token}`,
           'Content-Type': 'application/json'
         }
       });
-      return response.data;
+      return data;
     }
   }
 ];
@@ -150,59 +150,60 @@ const tools = [
 // ✅ Endpoint MCP-compatible : GET /sse
 app.get('/sse', async (req, res) => {
   // SSE headers
-  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  // Si on veut juste la liste des tools
+  console.log('🔄 /sse hit, query:', req.query);
+
+  // Handle client disconnect
+  req.on('close', () => {
+    console.log('🔌 SSE connection closed by client');
+  });
+
+  // 1) List tools
   if (req.query.metadata === 'true') {
-    const metadata = {
-      tools: tools.map(t => ({
-        name: t.name,
-        description: t.description,
-        input_schema: t.input_schema
-      }))
-    };
-    res.write(`data: ${JSON.stringify(metadata)}\n\n`);
+    const payload = { tools: tools.map(({ name, description, input_schema }) => ({ name, description, input_schema })) };
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
     res.write(`data: [DONE]\n\n`);
-    return res.end();  // <- ici on ferme la connexion pour N8N
+    return res.end(); // ← close connection so N8N can proceed
   }
 
   try {
+    // 2) Call a tool
     const toolName   = req.query.tool_name;
-    const rawParams  = req.query.parameters || '{}';
-    const parameters = JSON.parse(rawParams);
+    const parameters = JSON.parse(req.query.parameters || '{}');
+    const tool       = tools.find(t => t.name === toolName);
 
-    const tool = tools.find(t => t.name === toolName);
     if (!tool) {
       res.write(`data: ${JSON.stringify({ error: 'Tool not found' })}\n\n`);
       res.write(`data: [DONE]\n\n`);
-      return res.end();  // <- et ici aussi
+      return res.end();
     }
 
-    // Envoi du tool_call
+    // Acknowledge call
     res.write(`data: ${JSON.stringify({ tool_call: { name: tool.name, parameters } })}\n\n`);
 
-    // Exécution du tool
+    // Execute and respond
     const output = await tool.run({ input: { parameters } });
     res.write(`data: ${JSON.stringify({ tool_response: output })}\n\n`);
     res.write(`data: [DONE]\n\n`);
-    return res.end();    // <- fermeture finale
+    return res.end();
   } catch (err) {
-    console.error('❌ Erreur dans /sse :', err);
+    console.error('❌ Error in /sse:', err);
     res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
     res.write(`data: [DONE]\n\n`);
     return res.end();
   }
 });
 
-// ✅ Route d’accueil
+// ✅ Healthcheck
 app.get('/', (req, res) => {
   res.send('✅ Eliott MCP Server is running');
 });
 
-// ✅ Démarrage du serveur
+// ✅ Start server
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`🚀 MCP Eliott server running on port ${PORT}`);

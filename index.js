@@ -18,12 +18,13 @@ const app = express();
 // ✅ Middleware JSON
 app.use(express.json());
 
-// ✅ Middleware CORS
+// ✅ Middleware CORS complet
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  res.setHeader('Connection', 'keep-alive'); // <= important pour SSE
+  res.setHeader('Cache-Control', 'no-cache');
   next();
 });
 

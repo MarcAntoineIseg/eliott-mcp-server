@@ -200,12 +200,15 @@ app.post('/sse', async (req, res) => {
   const clientId = getClientId(req);
   const client = clients.get(clientId);
   if (!client) {
+    console.log('❌ POST /sse: No SSE connection found for client', clientId);
     return res.status(400).json({ error: 'No SSE connection found for client.' });
   }
   const sseRes = client.res;
   const { id, method, type, name, arguments: args } = req.body;
+  console.log('➡️  POST /sse received:', req.body);
 
   if (method === 'tools/list') {
+    console.log('🔗 MCP handshake: tools/list received, pushing tools_list SSE event');
     sseRes.write(`data: ${JSON.stringify({
       id,
       type: 'tools_list',
@@ -217,6 +220,7 @@ app.post('/sse', async (req, res) => {
   if (type === 'call') {
     const tool = tools.find(t => t.name === name);
     if (!tool) {
+      console.log('❌ Tool not found:', name);
       sseRes.write(`data: ${JSON.stringify({
         id,
         type: 'call_result',
@@ -229,6 +233,7 @@ app.post('/sse', async (req, res) => {
       if (typeof input === 'string') input = JSON.parse(input);
       if (input && input.parameters) input = input.parameters;
       const output = await tool.run({ input });
+      console.log('✅ Tool executed:', name, '→', output);
       sseRes.write(`data: ${JSON.stringify({
         id,
         type: 'call_result',
@@ -236,6 +241,7 @@ app.post('/sse', async (req, res) => {
       })}\n\n`);
       return res.sendStatus(200);
     } catch (err) {
+      console.log('❌ Tool execution error:', name, err.message);
       sseRes.write(`data: ${JSON.stringify({
         id,
         type: 'call_result',
@@ -246,6 +252,7 @@ app.post('/sse', async (req, res) => {
   }
 
   // autres cas : ignore ou log
+  console.log('ℹ️  POST /sse: unknown method/type', req.body);
   res.sendStatus(200);
 });
 

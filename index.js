@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const axios = require('axios');
 
 const searchRouter = require('./routes/search');
 const fetchRouter = require('./routes/fetch');
@@ -10,9 +11,10 @@ const getCampaignPerformanceRouter = require('./routes/get_campaign_performance'
 const getAdPerformanceRouter = require('./routes/get_ad_performance');
 const executeGAQLQueryRouter = require('./routes/execute_gaql_query');
 const ga4Router = require('./routes/ga4');
+
 const app = express();
 
-// ✅ Middleware JSON (doit venir AVANT les routes)
+// ✅ Middleware JSON
 app.use(express.json());
 
 // ✅ Middleware CORS
@@ -22,7 +24,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// ✅ Log utile pour debug (optionnel, à commenter en prod)
+// ✅ Middleware de debug
 app.use((req, res, next) => {
   console.log(`📦 Contenu brut reçu dans req.body:`, req.body);
   next();
@@ -36,10 +38,10 @@ app.use('/list_accounts', listAccountsRouter);
 app.use('/run_gaql', runGAQLRouter);
 app.use('/get_campaign_performance', getCampaignPerformanceRouter);
 app.use('/get_ad_performance', getAdPerformanceRouter);
-app.use('/execute_gaql_query', executeGAQLQueryRouter)
+app.use('/execute_gaql_query', executeGAQLQueryRouter);
 app.use('/run_ga4_query', ga4Router);
 
-// ✅ Définition des tools MCP
+// ✅ Tools MCP
 const tools = [
   {
     name: "search_google_ads_campaigns",
@@ -89,6 +91,75 @@ const tools = [
         clicks: 123,
         cpc: 0.95
       };
+    }
+  },
+  {
+    name: "list_ga4_properties",
+    description: "Liste les propriétés GA4 accessibles par l'utilisateur connecté.",
+    input_schema: {
+      type: "object",
+      properties: {
+        access_token: { type: "string", description: "Access token OAuth du compte utilisateur." }
+      },
+      required: ["access_token"],
+      additionalProperties: false
+    },
+    run: async ({ input }) => {
+      const { access_token } = input.parameters;
+
+      const response = await axios.get(
+        'https://analyticsadmin.googleapis.com/v1beta/accountSummaries',
+        {
+          headers: {
+            Authorization: `Bearer ${access_token}`
+          }
+        }
+      );
+
+      return response.data.accountSummaries || [];
+    }
+  },
+  {
+    name: "run_ga4_report",
+    description: "Exécute une requête GA4 personnalisée avec dimensions, métriques et plage de dates.",
+    input_schema: {
+      type: "object",
+      properties: {
+        access_token: { type: "string" },
+        property_id: { type: "string" },
+        dimensions: {
+          type: "array",
+          items: { type: "string" }
+        },
+        metrics: {
+          type: "array",
+          items: { type: "string" }
+        },
+        start_date: { type: "string" },
+        end_date: { type: "string" }
+      },
+      required: ["access_token", "property_id", "dimensions", "metrics", "start_date", "end_date"],
+      additionalProperties: false
+    },
+    run: async ({ input }) => {
+      const { access_token, property_id, dimensions, metrics, start_date, end_date } = input.parameters;
+
+      const url = `https://analyticsdata.googleapis.com/v1beta/properties/${property_id}:runReport`;
+
+      const requestBody = {
+        dimensions: dimensions.map(name => ({ name })),
+        metrics: metrics.map(name => ({ name })),
+        dateRanges: [{ startDate: start_date, endDate: end_date }]
+      };
+
+      const response = await axios.post(url, requestBody, {
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      return response.data;
     }
   }
 ];
@@ -147,7 +218,7 @@ app.get('/', (req, res) => {
   res.send('✅ Eliott MCP Server is running');
 });
 
-// ✅ Lancement serveur
+// ✅ Démarrage du serveur
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`🚀 MCP Eliott server running on port ${PORT}`);

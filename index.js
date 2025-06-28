@@ -219,7 +219,8 @@ app.get('/', (req, res) => {
 });
 
 // ✅ Démarrage du serveur
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`🚀 MCP Eliott server running on port ${PORT}`);
 });
+

@@ -74,7 +74,7 @@ const tools = [
   },
   {
     name: 'run_gaql',
-    description: 'Exécute une requête GAQL brute sur un compte Google Ads',
+    description: 'Execute une requête GAQL brute sur un compte Google Ads',
     inputSchema: {
       type: 'object',
       properties: {
@@ -91,7 +91,7 @@ const tools = [
   },
   {
     name: 'execute_gaql_query',
-    description: 'Exécute une requête GAQL préconfigurée avec logique métier',
+    description: 'Execute une requête GAQL preconfiguree avec logique metier',
     inputSchema: {
       type: 'object',
       properties: {
@@ -125,7 +125,7 @@ const tools = [
   },
   {
     name: 'run_ga4_query',
-    description: 'Exécute un rapport Google Analytics 4 avec dimensions et métriques',
+    description: 'Execute un rapport Google Analytics 4 avec dimensions et metriques',
     inputSchema: {
       type: 'object',
       properties: {
@@ -168,10 +168,10 @@ function getManifest() {
 // --- GET /sse (SEULEMENT ici les headers SSE) ---
 app.get('/sse', (req, res) => {
   res.writeHead(200, {
-    'Content-Type':  'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection:      'keep-alive',
-  });
+  'Content-Type': 'text/event-stream; charset=utf-8',
+  'Cache-Control': 'no-cache',
+  'Connection': 'keep-alive'
+});
 
   const clientId = getClientId(req);
 
